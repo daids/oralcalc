@@ -1,0 +1,666 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>小学生口算题生成器 - 专业版</title>
+    <style>
+        :root {
+            --primary-color: #2196F3;
+            --bg-color: #f5f7fa;
+            --border-color: #dcdfe6;
+            --text-color: #303133;
+        }
+
+        body {
+            font-family: "Microsoft YaHei", "SimHei", sans-serif;
+            margin: 0;
+            padding: 0;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            display: flex;
+            height: 100vh;
+            overflow: hidden;
+        }
+
+        /* 左侧控制面板 */
+        .sidebar {
+            width: 340px;
+            background: #fff;
+            border-right: 1px solid var(--border-color);
+            display: flex;
+            flex-direction: column;
+            overflow-y: auto;
+            box-shadow: 2px 0 5px rgba(0,0,0,0.05);
+            z-index: 10;
+        }
+
+        .sidebar-header {
+            padding: 20px;
+            background: var(--primary-color);
+            color: #fff;
+            text-align: center;
+        }
+        
+        .sidebar-header h2 { margin: 0; font-size: 20px; }
+
+        .controls {
+            padding: 15px;
+            flex: 1;
+        }
+
+        .control-group {
+            margin-bottom: 20px;
+            border-bottom: 1px solid #eee;
+            padding-bottom: 15px;
+        }
+
+        .control-group h3 {
+            font-size: 14px;
+            color: #666;
+            margin-bottom: 10px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 8px;
+        }
+
+        label { font-size: 13px; }
+
+        input[type="number"], select {
+            width: 60px;
+            padding: 4px;
+            border: 1px solid var(--border-color);
+            border-radius: 4px;
+        }
+
+        input[type="checkbox"] { margin-right: 5px; }
+
+        .btn {
+            width: 100%;
+            padding: 10px;
+            background-color: var(--primary-color);
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 16px;
+            margin-top: 10px;
+            transition: background 0.3s;
+        }
+
+        .btn:hover { background-color: #1976D2; }
+        .btn-outline { background: transparent; border: 1px solid var(--primary-color); color: var(--primary-color); margin-top: 5px;}
+        .btn-outline:hover { background: #e3f2fd; }
+
+        .presets {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 5px;
+        }
+        .preset-btn {
+            padding: 5px;
+            font-size: 12px;
+            background: #f0f0f0;
+            border: 1px solid #ddd;
+            border-radius: 3px;
+            cursor: pointer;
+        }
+        .preset-btn:hover { background: #e0e0e0; }
+
+        /* 右侧预览区域 */
+        .main-content {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        .toolbar {
+            padding: 10px 20px;
+            background: #fff;
+            border-bottom: 1px solid var(--border-color);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .stats { font-size: 13px; color: #666; }
+
+        .paper-preview {
+            flex: 1;
+            overflow-y: auto;
+            padding: 30px;
+            background: #666;
+            display: flex;
+            justify-content: center;
+        }
+
+        /* A4 纸张模拟 */
+        .paper {
+            background: white;
+            width: 210mm;
+            min-height: 297mm;
+            padding: 15mm;
+            box-shadow: 0 0 10px rgba(0,0,0,0.3);
+            box-sizing: border-box;
+            position: relative;
+        }
+
+        .paper-header {
+            display: flex;
+            justify-content: space-between;
+            border-bottom: 2px solid #000;
+            padding-bottom: 10px;
+            margin-bottom: 20px;
+            font-size: 16px;
+            font-weight: bold;
+        }
+
+        .info-line span { margin-right: 15px; }
+
+        .questions-container {
+            display: grid;
+            /* 动态列数 */
+            gap: 15px 30px; 
+        }
+
+        .question-item {
+            font-size: 18px;
+            font-family: "KaiTi", "楷体", serif; /* 更接近手写体 */
+            white-space: nowrap;
+        }
+
+        /* 打印样式 */
+        @media print {
+            @page {
+                size: A4;
+                margin: 10mm;
+            }
+            body { background: white; height: auto; overflow: visible; display: block; }
+            .sidebar, .toolbar { display: none !important; }
+            .main-content { display: block; overflow: visible; }
+            .paper-preview { padding: 0; background: white; display: block; overflow: visible; }
+            .paper { 
+                width: 100%; 
+                min-height: auto; 
+                box-shadow: none; 
+                padding: 0; 
+                margin: 0;
+            }
+            .questions-container { gap: 10px 20px; }
+        }
+    </style>
+</head>
+<body>
+
+    <!-- 侧边栏：设置区域 -->
+    <aside class="sidebar">
+        <div class="sidebar-header">
+            <h2>口算题生成器</h2>
+        </div>
+        <div class="controls">
+            <!-- 快捷预设 -->
+            <div class="control-group">
+                <h3>快捷预设</h3>
+                <div class="presets">
+                    <button class="preset-btn" onclick="applyPreset('add20')">20以内加法</button>
+                    <button class="preset-btn" onclick="applyPreset('sub20')">20以内减法</button>
+                    <button class="preset-btn" onclick="applyPreset('add100_no_carry')">100以内不进位</button>
+                    <button class="preset-btn" onclick="applyPreset('sub100_no_borrow')">100以内不借位</button>
+                    <button class="preset-btn" onclick="applyPreset('add100_carry')">100以内进位加法</button>
+                    <button class="preset-btn" onclick="applyPreset('sub100_borrow')">100以内借位减法</button>
+                    <button class="preset-btn" onclick="applyPreset('mix100')">100以内加减混合</button>
+                    <button class="preset-btn" onclick="applyPreset('mul9')">9乘9乘法表</button>
+                </div>
+            </div>
+
+            <!-- 运算设置 -->
+            <div class="control-group">
+                <h3>核心参数</h3>
+                <div class="row">
+                    <label>运算类型：</label>
+                    <div>
+                        <input type="checkbox" id="opAdd" checked>+ 
+                        <input type="checkbox" id="opSub" checked>- 
+                        <input type="checkbox" id="opMul">× 
+                        <input type="checkbox" id="opDiv">÷
+                    </div>
+                </div>
+                <div class="row">
+                    <label>题目数量：</label>
+                    <input type="number" id="qCount" value="100" min="1" max="300">
+                </div>
+                
+                <div class="row">
+                    <label>混合运算（3个数）：</label>
+                    <input type="checkbox" id="isMixed"> (复杂模式)
+                </div>
+                <div class="row">
+                    <label>允许括号：</label>
+                    <input type="checkbox" id="useParentheses">
+                </div>
+            </div>
+
+            <!-- 数值范围 -->
+            <div class="control-group">
+                <h3>数值范围</h3>
+                <div class="row">
+                    <label>数值下限：</label>
+                    <input type="number" id="minVal" value="0">
+                </div>
+                <div class="row">
+                    <label>数值上限：</label>
+                    <input type="number" id="maxVal" value="20">
+                </div>
+                <div class="row">
+                    <label>得数下限：</label>
+                    <input type="number" id="resMin" value="0">
+                </div>
+                <div class="row">
+                    <label>得数上限：</label>
+                    <input type="number" id="resMax" value="20">
+                </div>
+            </div>
+
+            <!-- 进阶规则 -->
+            <div class="control-group">
+                <h3>进阶规则</h3>
+                <div class="row">
+                    <label>加法 进/不进：</label>
+                    <select id="carryRule">
+                        <option value="all">不限</option>
+                        <option value="must">必须进位</option>
+                        <option value="none">不进位</option>
+                    </select>
+                </div>
+                <div class="row">
+                    <label>减法 借/不借：</label>
+                    <select id="borrowRule">
+                        <option value="all">不限</option>
+                        <option value="must">必须借位</option>
+                        <option value="none">不借位</option>
+                    </select>
+                </div>
+                <div class="row">
+                    <label>除法余数：</label>
+                    <select id="remainderRule">
+                        <option value="allow">允许余数</option>
+                        <option value="none">整除</option>
+                    </select>
+                </div>
+                <div class="row">
+                    <label>求算目标(填空)：</label>
+                    <select id="targetType">
+                        <option value="result">求结果 (3+2=?)</option>
+                        <option value="random">随机求项 (3+?=5)</option>
+                    </select>
+                </div>
+            </div>
+
+            <!-- 排版 -->
+            <div class="control-group">
+                <h3>排版输出</h3>
+                <div class="row">
+                    <label>每行列数：</label>
+                    <select id="cols">
+                        <option value="3">3列</option>
+                        <option value="4" selected>4列</option>
+                        <option value="5">5列</option>
+                    </select>
+                </div>
+                <div class="row">
+                    <label>字体选择：</label>
+                    <select id="fontFamily">
+                        <option value="KaiTi">楷体</option>
+                        <option value="SimSun">宋体</option>
+                        <option value="Microsoft YaHei">微软雅黑</option>
+                    </select>
+                </div>
+            </div>
+
+            <button class="btn" onclick="generateQuestions()">立即生成题目</button>
+        </div>
+    </aside>
+
+    <!-- 主内容区域 -->
+    <main class="main-content">
+        <div class="toolbar">
+            <div class="stats" id="statsInfo">准备就绪</div>
+            <button class="btn" style="width: auto; padding: 5px 20px;" onclick="window.print()">打印试题</button>
+        </div>
+        
+        <div class="paper-preview">
+            <div class="paper" id="printArea">
+                <div class="paper-header">
+                    <div class="title">口算练习题</div>
+                    <div class="info-line">
+                        <span>姓名：______</span>
+                        <span>日期：______</span>
+                        <span>用时：______</span>
+                        <span>对题：______</span>
+                    </div>
+                </div>
+                <div class="questions-container" id="questionsContainer">
+                    <!-- 题目将在这里生成 -->
+                    <div style="grid-column: 1/-1; text-align: center; color: #999; margin-top: 50px;">
+                        点击左侧“立即生成题目”按钮开始
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <script>
+        // 全局配置
+        const config = {
+            ops: [],
+            count: 100,
+            isMixed: false,
+            minVal: 0,
+            maxVal: 20,
+            resMin: 0,
+            resMax: 20,
+            carryRule: 'all',
+            borrowRule: 'all',
+            remainderRule: 'allow',
+            targetType: 'result',
+            cols: 4,
+            font: 'KaiTi'
+        };
+
+        // 工具函数：随机整数
+        function rand(min, max) {
+            return Math.floor(Math.random() * (max - min + 1)) + min;
+        }
+
+        // 辅助：检测加法是否进位 (仅适用于个位或简单逻辑演示，多位数逻辑复杂化)
+        function checkCarry(a, b) {
+            return (a % 10) + (b % 10) >= 10;
+        }
+
+        // 辅助：检测减法是否借位
+        function checkBorrow(a, b) {
+            return (a % 10) < (b % 10);
+        }
+
+        // 预设配置
+        function applyPreset(type) {
+            // 重置基础勾选
+            document.getElementById('opAdd').checked = false;
+            document.getElementById('opSub').checked = false;
+            document.getElementById('opMul').checked = false;
+            document.getElementById('opDiv').checked = false;
+            document.getElementById('isMixed').checked = false;
+            document.getElementById('useParentheses').checked = false;
+
+            switch(type) {
+                case 'add20':
+                    document.getElementById('opAdd').checked = true;
+                    setRange(0, 20, 0, 20);
+                    setRule('carry', 'none'); // 不进位
+                    setRule('borrow', 'all'); 
+                    break;
+                case 'sub20':
+                    document.getElementById('opSub').checked = true;
+                    setRange(0, 20, 0, 20);
+                    setRule('borrow', 'none');
+                    break;
+                case 'add100_no_carry':
+                    document.getElementById('opAdd').checked = true;
+                    setRange(0, 100, 0, 100);
+                    setRule('carry', 'none');
+                    break;
+                case 'sub100_no_borrow':
+                    document.getElementById('opSub').checked = true;
+                    setRange(0, 100, 0, 100);
+                    setRule('borrow', 'none');
+                    break;
+                case 'add100_carry':
+                    document.getElementById('opAdd').checked = true;
+                    setRange(10, 99, 10, 99); // 需要一定位数才能进位
+                    setRule('carry', 'must');
+                    setRangeRes(0, 100);
+                    break;
+                case 'sub100_borrow':
+                    document.getElementById('opSub').checked = true;
+                    setRange(10, 100, 1, 99);
+                    setRule('borrow', 'must');
+                    setRangeRes(0, 100);
+                    break;
+                case 'mix100':
+                    document.getElementById('opAdd').checked = true;
+                    document.getElementById('opSub').checked = true;
+                    setRange(0, 100, 0, 100);
+                    setRule('carry', 'all');
+                    setRule('borrow', 'all');
+                    break;
+                case 'mul9':
+                    document.getElementById('opMul').checked = true;
+                    setRange(1, 9, 1, 9);
+                    setRangeRes(1, 81);
+                    break;
+            }
+            generateQuestions();
+        }
+
+        function setRange(min, max, rmin, rmax) {
+            document.getElementById('minVal').value = min;
+            document.getElementById('maxVal').value = max;
+            document.getElementById('resMin').value = rmin;
+            document.getElementById('resMax').value = rmax;
+        }
+        function setRangeRes(min, max) {
+            document.getElementById('resMin').value = min;
+            document.getElementById('resMax').value = max;
+        }
+        function setRule(type, val) {
+            document.getElementById(type + 'Rule').value = val;
+        }
+
+        // 主逻辑：获取配置
+        function getConfig() {
+            const ops = [];
+            if(document.getElementById('opAdd').checked) ops.push('+');
+            if(document.getElementById('opSub').checked) ops.push('-');
+            if(document.getElementById('opMul').checked) ops.push('×');
+            if(document.getElementById('opDiv').checked) ops.push('÷');
+
+            config.ops = ops.length ? ops : ['+'];
+            config.count = parseInt(document.getElementById('qCount').value) || 100;
+            config.isMixed = document.getElementById('isMixed').checked;
+            config.useParentheses = document.getElementById('useParentheses').checked;
+            config.minVal = parseInt(document.getElementById('minVal').value) || 0;
+            config.maxVal = parseInt(document.getElementById('maxVal').value) || 20;
+            config.resMin = parseInt(document.getElementById('resMin').value) || 0;
+            config.resMax = parseInt(document.getElementById('resMax').value) || 20;
+            config.carryRule = document.getElementById('carryRule').value;
+            config.borrowRule = document.getElementById('borrowRule').value;
+            config.remainderRule = document.getElementById('remainderRule').value;
+            config.targetType = document.getElementById('targetType').value;
+            config.cols = document.getElementById('cols').value;
+            config.font = document.getElementById('fontFamily').value;
+        }
+
+        // 核心逻辑：生成一道题
+        function createSingleQuestion() {
+            let attempts = 0;
+            while(attempts < 100) {
+                attempts++;
+                // 1. 确定运算符
+                let op = config.ops[rand(0, config.ops.length - 1)];
+                
+                // 2. 生成基础数值
+                let a = rand(config.minVal, config.maxVal);
+                let b = rand(config.minVal, config.maxVal);
+                let result;
+                let valid = true;
+
+                // 3. 运算特定校验
+                if (op === '+') {
+                    result = a + b;
+                    // 进位校验
+                    if (config.carryRule === 'must' && !checkCarry(a, b)) valid = false;
+                    if (config.carryRule === 'none' && checkCarry(a, b)) valid = false;
+                } else if (op === '-') {
+                    if (a < b) { [a, b] = [b, a]; } // 保证大减小，除非特定需求负数
+                    result = a - b;
+                    // 借位校验
+                    if (config.borrowRule === 'must' && !checkBorrow(a, b)) valid = false;
+                    if (config.borrowRule === 'none' && checkBorrow(a, b)) valid = false;
+                } else if (op === '×') {
+                    // 限制乘法数值稍微小一点以免溢出太大
+                    if(a > 50) a = rand(1, 20);
+                    if(b > 50) b = rand(1, 20);
+                    result = a * b;
+                } else if (op === '÷') {
+                    if (b === 0) { valid = false; }
+                    else {
+                        if (config.remainderRule === 'none') {
+                            // 整除：先生成商和除数
+                            let c = rand(1, Math.min(20, config.maxVal)); // 限制商的大小
+                            b = rand(1, Math.min(12, config.maxVal)); // 限制除数
+                            a = b * c;
+                            result = c;
+                        } else {
+                            // 允许余数：随机除数
+                            b = rand(1, 20);
+                            // a 必须大于 b
+                            a = rand(b, config.maxVal);
+                            result = Math.floor(a / b);
+                        }
+                    }
+                }
+
+                // 4. 结果范围校验
+                if (!valid) continue;
+                if (result < config.resMin || result > config.resMax) continue;
+
+                // 构建题目对象
+                let q = { text: "", answer: 0 };
+                
+                // 处理求运算项（填空）
+                let type = config.targetType;
+                if (type === 'random') {
+                    type = rand(0, 1) === 0 ? 'result' : 'operand';
+                }
+
+                if (type === 'result') {
+                    q.text = `${a} ${op} ${b} = `;
+                    q.answer = result;
+                } else {
+                    // 求某个运算项，例如 a + ? = result => ? = result - a
+                    // 避免填空结果为负数
+                    if (op === '-' || op === '÷') {
+                        // 减法：? - b = a => ? = a+b (保证填空是被减数)
+                        // 除法：? / b = a => ? = a*b (保证填空是被除数)
+                        q.text = `  ${op} ${b} = ${a}`;
+                        q.answer = op === '-' ? a + b : a * b;
+                    } else {
+                        // 加法/乘法：a + ? = result
+                         q.text = `${a} ${op}   = ${result}`;
+                         q.answer = op === '+' ? result - a : (b === 0 ? 0 : result / b);
+                    }
+                }
+
+                return q;
+            }
+            return null; // 无法生成符合条件的题
+        }
+
+        // 生成混合运算题 (3项, 简单实现)
+        function createMixedQuestion() {
+            let a = rand(config.minVal, config.maxVal);
+            let b = rand(config.minVal, config.maxVal);
+            let c = rand(config.minVal, config.maxVal);
+            let op1 = config.ops[rand(0, config.ops.length - 1)];
+            let op2 = config.ops[rand(0, config.ops.length - 1)];
+            
+            // 简化逻辑：避免除法和复杂括号的无限循环，这里主要支持加减乘简单混合
+            let text = "";
+            let result = 0;
+
+            if (config.useParentheses) {
+                // 形式: (a op b) op c
+                let res1 = calcSimple(a, b, op1);
+                result = calcSimple(res1, c, op2);
+                text = `(${a} ${op1} ${b}) ${op2} ${c} = `;
+            } else {
+                // 形式: a op b op c (严格从左到右，不遵循优先级，适合小学生口算逻辑)
+                let res1 = calcSimple(a, b, op1);
+                result = calcSimple(res1, c, op2);
+                text = `${a} ${op1} ${b} ${op2} ${c} = `;
+            }
+            
+            // 范围检查
+            if (result < config.resMin || result > config.resMax) return createMixedQuestion();
+            
+            return { text: text, answer: result };
+        }
+
+        function calcSimple(a, b, op) {
+            if(op==='+') return a+b;
+            if(op==='-') return a-b; // 不在此处处理负数，假定生成时已控制
+            if(op==='×') return a*b;
+            if(op==='÷') return b===0?0:a/b; // 混合运算暂不处理余数复杂度
+            return 0;
+        }
+
+        // 主执行函数
+        function generateQuestions() {
+            getConfig();
+            const container = document.getElementById('questionsContainer');
+            container.innerHTML = '';
+            
+            // 设置样式
+            container.style.gridTemplateColumns = `repeat(${config.cols}, 1fr)`;
+            container.style.fontFamily = config.font;
+
+            let questions = [];
+            let stats = { total: 0, add: 0, sub: 0, mul: 0, div: 0 };
+
+            for(let i=0; i<config.count; i++) {
+                let q;
+                if(config.isMixed) {
+                    q = createMixedQuestion();
+                    if(q) q.type = 'mixed';
+                } else {
+                    q = createSingleQuestion();
+                }
+
+                if(q) {
+                    questions.push(q);
+                    // 统计
+                    if(q.text.includes('+')) stats.add++;
+                    else if(q.text.includes('-')) stats.sub++;
+                    else if(q.text.includes('×')) stats.mul++;
+                    else if(q.text.includes('÷')) stats.div++;
+                }
+            }
+
+            // 渲染DOM
+            questions.forEach(q => {
+                const div = document.createElement('div');
+                div.className = 'question-item';
+                div.textContent = q.text;
+                container.appendChild(div);
+            });
+
+            // 更新统计
+            document.getElementById('statsInfo').textContent = 
+                `成功生成 ${questions.length} 题 (加:${stats.add} 减:${stats.sub} 乘:${stats.mul} 除:${stats.div})`;
+        }
+
+        // 初始化
+        window.onload = function() {
+            generateQuestions();
+        };
+
+    </script>
+</body>
+</html>
